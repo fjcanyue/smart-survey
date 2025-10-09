@@ -1,0 +1,56 @@
+# 本地开发环境变量配置示例
+# 复制此文件为 .dev.vars 并填入真实的 API Key
+
+# ============================================
+# OpenAI 兼容 API 配置（推荐）
+# ============================================
+# 支持 OpenAI、DeepSeek、智谱、通义千问等使用 OpenAI API 格式的厂商
+
+# 方案 1: OpenAI 官方
+OPENAI_API_KEY=sk-your-openai-api-key-here
+# OPENAI_BASE_URL=https://api.openai.com/v1
+# OPENAI_MODEL=gpt-3.5-turbo
+
+# 方案 2: DeepSeek
+# OPENAI_API_KEY=your-deepseek-api-key-here
+# OPENAI_BASE_URL=https://api.deepseek.com/v1
+# OPENAI_MODEL=deepseek-chat
+
+# 方案 3: 智谱 AI (ChatGLM)
+# OPENAI_API_KEY=your-zhipu-api-key-here
+# OPENAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+# OPENAI_MODEL=glm-4
+
+# 方案 4: 通义千问 (Qwen)
+# OPENAI_API_KEY=your-qwen-api-key-here
+# OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+# OPENAI_MODEL=qwen-turbo
+
+# 方案 5: Moonshot (月之暗面)
+# OPENAI_API_KEY=your-moonshot-api-key-here
+# OPENAI_BASE_URL=https://api.moonshot.cn/v1
+# OPENAI_MODEL=moonshot-v1-8k
+
+# 方案 6: 硅基流动 (SiliconFlow)
+# OPENAI_API_KEY=your-siliconflow-api-key-here
+# OPENAI_BASE_URL=https://api.siliconflow.cn/v1
+# OPENAI_MODEL=Qwen/Qwen2-7B-Instruct
+
+# ============================================
+# 其他 LLM 提供商（备选方案）
+# ============================================
+
+# Google Gemini
+# GEMINI_API_KEY=your-gemini-api-key-here
+
+# Anthropic Claude
+# CLAUDE_API_KEY=your-claude-api-key-here
+
+# ============================================
+# 说明
+# ============================================
+# 1. 只需要配置一个 LLM 提供商即可
+# 2. 优先级: OpenAI 兼容 API > Gemini > Claude
+# 3. BASE_URL 和 MODEL 为可选项，如不指定则使用默认值
+# 4. 本地开发时使用 .dev.vars 文件
+# 5. 生产部署时使用 wrangler secret put 命令

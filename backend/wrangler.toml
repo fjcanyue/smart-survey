@@ -1,0 +1,46 @@
+name = "smart-survey-backend"
+main = "src/worker.js"
+compatibility_date = "2024-09-24"
+
+[vars]
+# Environment variables defined here will be available to your Worker
+# Be sure to not include any secrets here!
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB" # This will be available as env.DB in your Worker
+database_name = "smart-survey-db"
+database_id = "" # Will be filled after creating the database
+
+# For secrets (API Keys and configurations), use: wrangler secret put KEY_NAME
+#
+# OpenAI 兼容 API 配置（支持 OpenAI、DeepSeek、智谱、通义千问等）:
+# - OPENAI_API_KEY (必需)
+# - OPENAI_BASE_URL (可选，默认: https://api.openai.com/v1)
+# - OPENAI_MODEL (可选，默认: gpt-3.5-turbo)
+#
+# 示例配置不同厂商:
+#
+# 1. OpenAI 官方:
+#    wrangler secret put OPENAI_API_KEY
+#    wrangler secret put OPENAI_BASE_URL  # https://api.openai.com/v1
+#    wrangler secret put OPENAI_MODEL     # gpt-3.5-turbo 或 gpt-4
+#
+# 2. DeepSeek:
+#    wrangler secret put OPENAI_API_KEY
+#    wrangler secret put OPENAI_BASE_URL  # https://api.deepseek.com/v1
+#    wrangler secret put OPENAI_MODEL     # deepseek-chat
+#
+# 3. 智谱 AI (GLM):
+#    wrangler secret put OPENAI_API_KEY
+#    wrangler secret put OPENAI_BASE_URL  # https://open.bigmodel.cn/api/paas/v4
+#    wrangler secret put OPENAI_MODEL     # glm-4
+#
+# 4. 通义千问 (Qwen):
+#    wrangler secret put OPENAI_API_KEY
+#    wrangler secret put OPENAI_BASE_URL  # https://dashscope.aliyuncs.com/compatible-mode/v1
+#    wrangler secret put OPENAI_MODEL     # qwen-turbo
+#
+# 其他 LLM 提供商:
+# - GEMINI_API_KEY (for Google Gemini)
+# - CLAUDE_API_KEY (for Anthropic Claude)
