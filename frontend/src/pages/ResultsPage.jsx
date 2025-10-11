@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Chart } from "frappe-charts/dist/frappe-charts.min.esm";
 
 import { Button } from "../components/ui/button";
@@ -11,6 +11,8 @@ import {
   CardTitle
 } from "../components/ui/card";
 import { useToast } from "../hooks/use-toast";
+import { useAuth } from "../contexts/AuthContext";
+import { surveyAPI } from "../lib/api";
 
 const formatDateTime = (value) => {
   if (!value) {
@@ -89,29 +91,22 @@ const QuestionChart = ({ stat }) => {
 
 const ResultsPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const [surveyJson, setSurveyJson] = useState(null);
+  const { authenticated, user } = useAuth();
 
   useEffect(() => {
     const fetchResults = async () => {
       setLoading(true);
       try {
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8787";
-
         // 同时获取问卷定义和结果
-        const [surveyResponse, resultsResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/surveys/${id}`),
-          fetch(`${API_BASE_URL}/api/results/${id}`)
+        const [surveyData, resultsData] = await Promise.all([
+          surveyAPI.getSurvey(id),
+          surveyAPI.getResults(id)
         ]);
-
-        if (!surveyResponse.ok || !resultsResponse.ok) {
-          throw new Error("加载失败");
-        }
-
-        const surveyData = await surveyResponse.json();
-        const resultsData = await resultsResponse.json();
 
         setSurveyJson(surveyData.json);
         setResults(resultsData.results || []);

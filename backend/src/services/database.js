@@ -14,10 +14,24 @@ export async function initializeDatabase(db) {
         id TEXT PRIMARY KEY,
         title TEXT,
         json TEXT NOT NULL,
+        theme_type TEXT DEFAULT 'default',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         owner_id TEXT
       )
     `).run();
+
+    // 检查是否需要添加 theme_type 列到现有表
+    try {
+      await db.prepare(`
+        ALTER TABLE surveys ADD COLUMN theme_type TEXT DEFAULT 'default'
+      `).run();
+      console.log('已为现有 surveys 表添加 theme_type 列');
+    } catch (error) {
+      // 如果列已存在，会抛出错误，这是正常的
+      if (!error.message.includes('duplicate column name')) {
+        console.log('theme_type 列已存在或添加失败:', error.message);
+      }
+    }
 
     // 创建 results 表
     await db.prepare(`
@@ -41,7 +55,7 @@ export async function initializeDatabase(db) {
 /**
  * 保存问卷
  */
-export async function saveSurvey(db, surveyId, surveyJson, title = null) {
+export async function saveSurvey(db, surveyId, surveyJson, title = null, themeType = 'default', ownerId = null) {
   try {
     // 从 JSON 中提取标题（如果没有提供）
     if (!title && surveyJson.title) {
@@ -49,12 +63,12 @@ export async function saveSurvey(db, surveyId, surveyJson, title = null) {
     }
 
     const result = await db.prepare(`
-      INSERT OR REPLACE INTO surveys (id, title, json, created_at)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-    `).bind(surveyId, title, JSON.stringify(surveyJson)).run();
+      INSERT OR REPLACE INTO surveys (id, title, json, theme_type, owner_id, created_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).bind(surveyId, title, JSON.stringify(surveyJson), themeType, ownerId).run();
 
     if (result.success) {
-      console.log(`问卷保存成功，ID: ${surveyId}`);
+      console.log(`问卷保存成功，ID: ${surveyId}, Owner: ${ownerId || 'anonymous'}`);
       return { success: true, id: surveyId };
     } else {
       throw new Error('数据库保存操作失败');
@@ -71,7 +85,7 @@ export async function saveSurvey(db, surveyId, surveyJson, title = null) {
 export async function getSurvey(db, surveyId) {
   try {
     const result = await db.prepare(`
-      SELECT id, title, json, created_at, owner_id
+      SELECT id, title, json, theme_type, created_at, owner_id
       FROM surveys
       WHERE id = ?
     `).bind(surveyId).first();
@@ -81,6 +95,7 @@ export async function getSurvey(db, surveyId) {
         id: result.id,
         title: result.title,
         json: JSON.parse(result.json),
+        themeType: result.theme_type,
         createdAt: result.created_at,
         ownerId: result.owner_id
       };
@@ -96,14 +111,25 @@ export async function getSurvey(db, surveyId) {
 /**
  * 获取所有问卷列表（可选择性添加，用于管理页面）
  */
-export async function listSurveys(db, limit = 50, offset = 0) {
+export async function listSurveys(db, limit = 50, offset = 0, ownerId = null) {
   try {
-    const results = await db.prepare(`
+    let query = `
       SELECT id, title, created_at, owner_id
       FROM surveys
-      ORDER BY created_at DESC
-      LIMIT ? OFFSET ?
-    `).bind(limit, offset).all();
+    `;
+
+    const params = [];
+
+    // 如果指定了 ownerId，则只返回该用户的问卷
+    if (ownerId) {
+      query += ` WHERE owner_id = ?`;
+      params.push(ownerId);
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const results = await db.prepare(query).bind(...params).all();
 
     return {
       surveys: results.results || [],

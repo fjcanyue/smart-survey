@@ -13,5 +13,9 @@
   "description": "",
   "devDependencies": {
     "wrangler": "^4.39.0"
+  },
+  "dependencies": {
+    "arctic": "^3.7.0",
+    "jose": "^6.1.0"
   }
 }

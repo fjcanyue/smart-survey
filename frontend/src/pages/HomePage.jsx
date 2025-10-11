@@ -1,100 +1,80 @@
 import React from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ShieldCheck, Sparkles, Users, Workflow } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from "../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 
 const features = [
-  {
-    title: "AI 生成问卷",
-    description: "输入业务需求，快速生成结构化问卷草稿并可继续微调。"
-  },
-  {
-    title: "灵活分发",
-    description: "支持链接、嵌入和二维码等多种分发方式，触达不同渠道受众。"
-  },
-  {
-    title: "便捷收集",
-    description: "实时查看填写进度，支持导出数据并触发自动化流程。"
-  },
-  {
-    title: "安全合规",
-    description: "前后端分离架构与权限控制，确保问卷与答卷数据安全。"
-  }
+  { title: "AI 智能生成", description: "描述目标与受众，自动生成结构化问卷草案，可继续微调。", icon: Sparkles },
+  { title: "多渠道分发", description: "链接、嵌入、二维码多种方式分发，覆盖不同场景。", icon: Workflow },
+  { title: "实时数据与洞察", description: "实时查看作答进度，自动统计与图表洞察，导出便捷。", icon: Users },
+  { title: "安全与合规", description: "前后端分层与权限控制，确保问卷与数据的安全。", icon: ShieldCheck },
 ];
 
-const HomePage = () => {
+export default function HomePage() {
   return (
-    <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-      <section className="space-y-6">
-        <div className="space-y-4">
-          <p className="text-sm font-medium text-primary">Smart Survey</p>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            智能问卷系统
-          </h1>
-          <p className="max-w-2xl text-lg text-muted-foreground">
-            借助 SurveyJS 与 AI 生成能力，轻松构建专业问卷并快速获取高质量反馈。
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button asChild>
-            <Link to="/create" className="inline-flex items-center gap-2">
-              立即创建
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to="/survey/demo" className="inline-flex items-center gap-2">
-              查看体验问卷
-            </Link>
-          </Button>
-        </div>
-        <div className="space-y-4">
-          <h2 className="text-2xl font-semibold">产品亮点</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {features.map((feature) => (
-              <Card key={feature.title} className="h-full">
-                <CardHeader>
-                  <CardTitle className="text-lg">{feature.title}</CardTitle>
-                  <CardDescription>{feature.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
+    <div className="space-y-12">
+      <section className="relative overflow-hidden rounded-xl border bg-gradient-to-b from-background to-muted/40 p-8 md:p-12">
+        <div className="max-w-3xl space-y-5">
+          <span className="inline-flex items-center rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">Smart Survey</span>
+          <h1 className="text-3xl font-bold tracking-tight md:text-5xl">用更聪明的方式创建与分析问卷</h1>
+          <p className="text-muted-foreground text-lg">基于 SurveyJS 与 AI 助力，几分钟内从想法到上线收集，实时洞察结果，驱动更快更好的决策。</p>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild size="lg" className="gap-2">
+              <Link to="/create">
+                立即创建
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button variant="outline" asChild size="lg">
+              <Link to="/survey/demo">查看示例</Link>
+            </Button>
           </div>
+        </div>
+        <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+      </section>
+
+      <section className="space-y-6">
+        <h2 className="text-2xl font-semibold">产品亮点</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {features.map(({ title, description, icon: Icon }) => (
+            <Card key={title} className="h-full">
+              <CardHeader className="space-y-2">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary/10">
+                  <Icon className="h-4 w-4 text-primary" />
+                </div>
+                <CardTitle className="text-base">{title}</CardTitle>
+                <CardDescription className="text-sm">{description}</CardDescription>
+              </CardHeader>
+            </Card>
+          ))}
         </div>
       </section>
 
-      <aside className="space-y-4">
+      <section>
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">工作流程</CardTitle>
-            <CardDescription>三步完成问卷创建与发布</CardDescription>
+            <CardTitle className="text-lg">如何开始</CardTitle>
+            <CardDescription>三步完成，从构想到洞察</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4 text-sm text-muted-foreground">
+          <CardContent className="grid gap-6 text-sm text-muted-foreground md:grid-cols-3">
             <div>
-              <p className="font-medium text-foreground">1. 录入需求</p>
-              <p>描述问卷目标与核心问题，系统自动生成结构化草稿。</p>
+              <p className="font-medium text-foreground">1. 描述目标</p>
+              <p>输入问卷目的与受众，系统生成结构化问卷草案。</p>
             </div>
             <div>
               <p className="font-medium text-foreground">2. 拖拽微调</p>
-              <p>在 Survey Creator 中调整题型、逻辑跳转与主题风格。</p>
+              <p>在问卷编辑器中配置逻辑跳转、校验与样式。</p>
             </div>
             <div>
-              <p className="font-medium text-foreground">3. 分发收集</p>
-              <p>一键发布并实时追踪答卷数据，支持导出和 API 回调。</p>
+              <p className="font-medium text-foreground">3. 分发与分析</p>
+              <p>一键发布并实时查看数据走势，支持导出与回流。</p>
             </div>
           </CardContent>
         </Card>
-      </aside>
+      </section>
     </div>
   );
-};
+}
 
-export default HomePage;

@@ -29,6 +29,8 @@ import { Textarea } from "../components/ui/textarea";
 import { cn } from "../lib/utils";
 import { useToast } from "../hooks/use-toast";
 import { THEME_TYPES, getTheme } from "../lib/surveyThemes";
+import { useAuth } from "../contexts/AuthContext";
+import { surveyAPI } from "../lib/api";
 
 const SurveyCreatorPage = () => {
   const [prompt, setPrompt] = useState("");
@@ -39,6 +41,7 @@ const SurveyCreatorPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { authenticated, loading: authLoading, user } = useAuth();
 
   // 新增：主题选择状态
   const [selectedThemeType, setSelectedThemeType] = useState("default");
@@ -55,6 +58,18 @@ const SurveyCreatorPage = () => {
 
   // 新增：全屏预览状态
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
+
+  // 认证检查
+  useEffect(() => {
+    if (!authLoading && !authenticated) {
+      toast({
+        title: "需要登录",
+        description: "请先登录后再创建问卷",
+        variant: "destructive",
+      });
+      navigate('/');
+    }
+  }, [authenticated, authLoading, navigate, toast]);
 
   const creator = useMemo(() => {
     const instance = new SurveyCreator({
@@ -121,15 +136,7 @@ const SurveyCreatorPage = () => {
   const loadSurvey = async (id) => {
     setLoading(true);
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8787";
-
-      const response = await fetch(`${API_BASE_URL}/api/surveys/${id}`);
-
-      if (!response.ok) {
-        throw new Error("加载问卷失败");
-      }
-
-      const data = await response.json();
+      const data = await surveyAPI.getSurvey(id);
 
       if (data.json) {
         creator.JSON = data.json;
@@ -168,23 +175,7 @@ const SurveyCreatorPage = () => {
 
     setLoading(true);
     try {
-      // 调用后端 API 生成问卷
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8787";
-
-      const response = await fetch(`${API_BASE_URL}/api/surveys/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ prompt })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "生成问卷失败" }));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await surveyAPI.generateSurvey(prompt);
 
       // 将生成的问卷 JSON 加载到编辑器中
       if (data.json) {
@@ -192,7 +183,6 @@ const SurveyCreatorPage = () => {
         setJsonText(JSON.stringify(data.json, null, 2));
         setSurveyId(data.id); // 保存生成的问卷 ID
         toast({
-          variant: "success",
           title: "生成成功！",
           description: "问卷已生成，您可以继续在编辑器中调整",
         });
@@ -201,11 +191,20 @@ const SurveyCreatorPage = () => {
       }
     } catch (error) {
       console.error("生成问卷失败:", error);
-      toast({
-        variant: "destructive",
-        title: "生成失败",
-        description: error.message,
-      });
+      if (error.message.includes("未登录")) {
+        toast({
+          variant: "destructive",
+          title: "需要登录",
+          description: "请先登录后再创建问卷",
+        });
+        navigate('/');
+      } else {
+        toast({
+          variant: "destructive",
+          title: "生成失败",
+          description: error.message,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -243,29 +242,10 @@ const SurveyCreatorPage = () => {
 
     setSaving(true);
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8787";
-
       // 如果没有 surveyId，生成一个新的
       const idToSave = surveyId || `survey_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      const response = await fetch(`${API_BASE_URL}/api/surveys`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          id: idToSave,
-          json: surveyJson,
-          themeType: selectedThemeType // 保存主题类型
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "保存问卷失败" }));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await surveyAPI.saveSurvey(idToSave, surveyJson, selectedThemeType);
 
       // 更新 surveyId
       if (!surveyId) {
@@ -275,17 +255,31 @@ const SurveyCreatorPage = () => {
       }
 
       toast({
-        variant: "success",
         title: "保存成功！",
         description: surveyId ? "问卷已更新" : "问卷已保存，您可以继续编辑",
       });
     } catch (error) {
       console.error("保存问卷失败:", error);
-      toast({
-        variant: "destructive",
-        title: "保存失败",
-        description: error.message,
-      });
+      if (error.message.includes("未登录")) {
+        toast({
+          variant: "destructive",
+          title: "需要登录",
+          description: "请先登录后再保存问卷",
+        });
+        navigate('/');
+      } else if (error.message.includes("无权限")) {
+        toast({
+          variant: "destructive",
+          title: "保存失败",
+          description: "您无权限修改此问卷",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "保存失败",
+          description: error.message,
+        });
+      }
     } finally {
       setSaving(false);
     }
@@ -352,28 +346,8 @@ const SurveyCreatorPage = () => {
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             placeholder="示例：为企业客户编写一份产品满意度调研，重点关注功能易用性和售后体验。"
-            rows={5}
+            rows={3}
           />
-          <div className="flex items-center gap-4">
-            <label htmlFor="theme-type-select" className="text-sm font-medium whitespace-nowrap">
-              问卷主题:
-            </label>
-            <select
-              id="theme-type-select"
-              value={selectedThemeType}
-              onChange={(e) => setSelectedThemeType(e.target.value)}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              {THEME_TYPES.map(theme => (
-                <option key={theme.id} value={theme.id}>
-                  {theme.name}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-muted-foreground">
-              用户答题时可切换明暗模式
-            </span>
-          </div>
           <p className="text-sm text-muted-foreground">
             生成后可继续在下方编辑器中调整题型、逻辑和主题。
           </p>
@@ -398,6 +372,26 @@ const SurveyCreatorPage = () => {
           <div className="space-y-1.5">
             <CardTitle>问卷设计器</CardTitle>
             <CardDescription>
+          <div className="flex items-center gap-4">
+            <label htmlFor="theme-type-select" className="text-sm font-medium whitespace-nowrap">
+              问卷主题:
+            </label>
+            <select
+              id="theme-type-select"
+              value={selectedThemeType}
+              onChange={(e) => setSelectedThemeType(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {THEME_TYPES.map(theme => (
+                <option key={theme.id} value={theme.id}>
+                  {theme.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-muted-foreground">
+              用户答题时可切换明暗模式
+            </span>
+          </div>
               {editMode === "json"
                 ? "编辑 JSON 代码，右侧实时预览问卷效果"
                 : "拖拽组件、设置逻辑跳转或切换主题"}

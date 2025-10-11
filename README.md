@@ -6,12 +6,15 @@
 
 - 🤖 **AI 问卷生成**：通过自然语言描述自动生成专业问卷
 - 📝 **多种题型支持**：单选、多选、文本输入、评分、排序等
+- 👤 **多平台社交登录**：支持 GitHub、Google、Microsoft 账号登录
+- 🔐 **用户权限管理**：问卷创建者独享编辑权限
+- 📋 **我的问卷管理**：统一管理所有创建的问卷
 - 💰 **零成本部署**：基于 Cloudflare Pages + Workers + D1 免费套餐
 - 🔄 **多 LLM 支持**：OpenAI GPT、Google Gemini、Anthropic Claude
 - 📊 **实时数据分析**：问卷结果可视化展示
-- 🎨 **美观界面**：基于 SurveyJS 的现代化 UI
+- 🎨 **美观界面**：基于 SurveyJS 的现代化 UI + Tailwind CSS
 - ⚡ **边缘计算**：全球 CDN 加速，低延迟响应
-- 🔒 **安全可靠**：API 密钥安全管理，输入验证
+- 🔒 **安全可靠**：JWT 会话管理、OAuth 认证、API 密钥安全存储
 
 ## 🏗️ 系统架构
 
@@ -20,17 +23,19 @@
 │   用户浏览器    │    │ Cloudflare Pages │    │ External APIs   │
 │                 │    │   (前端静态)     │    │                 │
 │  React SPA      │◄──►│                  │    │   OpenAI GPT    │
-│  - 问卷创建器   │    │                  │    │   Google Gemini │
-│  - 问卷运行器   │    │                  │    │   Claude API    │
-│  - 结果查看器   │    │                  │    │                 │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       ▲
-         │                       │                       │
-         ▼                       ▼                       │
-┌────────────────────────────────────────────────────────┴─────┐
-│               Cloudflare Worker (后端 API)                   │
-│  - 路由处理    - LLM 集成    - 数据库操作    - 业务逻辑      │
-└───────────────────────────────┬──────────────────────────────┘
+│  - 问卷创建器   │    │  + AuthContext   │    │   Google Gemini │
+│  - 问卷运行器   │    │  + 用户管理      │    │   Claude API    │
+│  - 结果查看器   │    │  + Dashboard     │    │                 │
+│  - 我的问卷     │    │                  │    │  OAuth Providers│
+└─────────────────┘    └──────────────────┘    │  - GitHub       │
+         │                       │              │  - Google       │
+         │                       │              │  - Microsoft    │
+         ▼                       ▼              └─────────────────┘
+┌────────────────────────────────────────────────────────┬─────┐
+│               Cloudflare Worker (后端 API)              │     │
+│  - 路由处理    - OAuth 认证   - JWT 会话管理           │     │
+│  - LLM 集成    - 权限控制     - 数据库操作             │     │
+└───────────────────────────────┬────────────────────────┴─────┘
                                 │
                                 ▼
                     ┌─────────────────────┐
@@ -38,6 +43,7 @@
                     │    (SQL 数据库)     │
                     │  - surveys 表       │
                     │  - results 表       │
+                    │  (含 owner_id)      │
                     └─────────────────────┘
 ```
 
@@ -48,6 +54,7 @@
 - Node.js 18+
 - Cloudflare 账户
 - 至少一个 LLM API Key (OpenAI/Gemini/Claude)
+- OAuth 应用凭据 (GitHub/Google/Microsoft，可选)
 
 ### 1. 克隆项目
 
@@ -56,7 +63,26 @@ git clone <your-repo-url>
 cd smart-survey
 ```
 
-### 2. 部署后端
+### 2. 配置 OAuth（可选但推荐）
+
+如需用户认证功能，请先配置 OAuth 应用：
+
+**GitHub OAuth:**
+- 访问 https://github.com/settings/developers 创建 OAuth App
+- 回调 URL: `http://localhost:8787/api/auth/callback/github` (开发环境)
+
+**Google OAuth:**
+- 访问 https://console.cloud.google.com/apis/credentials
+- 创建 OAuth 2.0 客户端 ID
+- 回调 URL: `http://localhost:8787/api/auth/callback/google`
+
+**Microsoft OAuth:**
+- 访问 https://portal.azure.com 注册应用
+- 回调 URL: `http://localhost:8787/api/auth/callback/microsoft`
+
+详细配置说明请查看 [AUTH_SETUP.md](AUTH_SETUP.md)
+
+### 3. 部署后端
 
 ```bash
 cd backend
@@ -72,16 +98,27 @@ npx wrangler d1 create smart-survey-db
 
 # 更新 wrangler.toml 中的 database_id
 
-# 设置 API 密钥（选择一个）
+# 设置 LLM API 密钥（选择一个）
 npx wrangler secret put OPENAI_API_KEY     # OpenAI
 npx wrangler secret put GEMINI_API_KEY     # Google Gemini
 npx wrangler secret put CLAUDE_API_KEY     # Anthropic Claude
+
+# 设置认证相关密钥（如果启用认证）
+npx wrangler secret put JWT_SECRET
+npx wrangler secret put GITHUB_CLIENT_ID
+npx wrangler secret put GITHUB_CLIENT_SECRET
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put MICROSOFT_CLIENT_ID
+npx wrangler secret put MICROSOFT_CLIENT_SECRET
+npx wrangler secret put FRONTEND_URL
+npx wrangler secret put APP_URL
 
 # 部署 Worker
 npx wrangler deploy
 ```
 
-### 3. 部署前端
+### 4. 部署前端
 
 ```bash
 cd frontend
@@ -89,16 +126,14 @@ cd frontend
 # 安装依赖
 npm install
 
-# 更新 API 基础 URL 配置
-# 编辑 src/config.js，设置后端 Worker URL
+# 配置 API URL
+# 创建 .env 文件，设置 VITE_API_URL=<你的Worker URL>
 
 # 构建前端
 npm run build
 
 # 部署到 Cloudflare Pages (或手动上传 build 目录)
 ```
-
-### 4. 验证部署
 
 访问你的 Worker URL + `/api/test`，应该看到：
 ```json
@@ -107,7 +142,65 @@ npm run build
 
 ## 📚 API 文档
 
-### 🤖 生成问卷
+### 🔐 认证相关
+
+#### 发起登录
+```http
+GET /api/auth/login/{provider}
+```
+- provider: `github` | `google` | `microsoft`
+- 自动重定向到 OAuth 提供商
+
+#### OAuth 回调（自动处理）
+```http
+GET /api/auth/callback/{provider}
+```
+
+#### 获取当前用户
+```http
+GET /api/auth/me
+```
+**响应：**
+```json
+{
+  "authenticated": true,
+  "user": {
+    "userId": "github:12345678",
+    "provider": "github",
+    "email": "user@example.com",
+    "name": "张三",
+    "avatar": "https://..."
+  }
+}
+```
+
+#### 登出
+```http
+POST /api/auth/logout
+```
+
+### 📋 问卷管理
+
+#### 获取我的问卷列表（需登录）
+```http
+GET /api/surveys/my?limit=50&offset=0
+```
+**响应：**
+```json
+{
+  "surveys": [
+    {
+      "id": "survey_xxx",
+      "title": "问卷标题",
+      "created_at": "2024-01-01T00:00:00Z",
+      "owner_id": "github:12345678"
+    }
+  ],
+  "total": 10
+}
+```
+
+### 🤖 生成问卷（需登录）
 ```http
 POST /api/surveys/generate
 Content-Type: application/json
@@ -128,14 +221,15 @@ Content-Type: application/json
 }
 ```
 
-### 💾 保存问卷
+### 💾 保存问卷（需登录）
 ```http
 POST /api/surveys
 Content-Type: application/json
 
 {
   "id": "survey_1234567890_abc123",
-  "json": { /* SurveyJS JSON */ }
+  "json": { /* SurveyJS JSON */ },
+  "themeType": "default"
 }
 ```
 
@@ -170,29 +264,53 @@ smart-survey/
 ├── DESIGN.md                   # 详细设计文档
 ├── ITERATION_PLAN.md           # 迭代开发计划
 ├── CLAUDE.md                   # Claude Code 指导文档
+├── AUTH_SETUP.md               # 认证系统配置指南
+├── LICENSE                     # MIT 许可证
 ├── backend/                    # 后端 Cloudflare Worker
 │   ├── src/
-│   │   ├── worker.js          # Worker 入口文件
-│   │   ├── services/
-│   │   │   ├── llm.js         # LLM API 集成
-│   │   │   └── database.js    # 数据库操作
+│   │   ├── worker.js          # Worker 入口文件及路由
+│   │   └── services/
+│   │       ├── llm.js         # LLM API 集成
+│   │       ├── database.js    # 数据库操作
+│   │       └── auth.js        # OAuth 认证服务
 │   ├── wrangler.toml          # Cloudflare 配置
 │   ├── package.json
-│   └── DEPLOYMENT.md          # 部署指南
+│   ├── .env.example           # 环境变量示例
+│   └── .dev.vars              # 本地开发环境变量
 └── frontend/                   # 前端 React 应用
     ├── src/
     │   ├── pages/             # 页面组件
+    │   │   ├── HomePage.jsx
+    │   │   ├── SurveyCreatorPage.jsx
+    │   │   ├── SurveyRunnerPage.jsx
+    │   │   ├── ResultsPage.jsx
+    │   │   └── DashboardPage.jsx    # 我的问卷管理
+    │   ├── contexts/
+    │   │   └── AuthContext.jsx      # 认证状态管理
     │   ├── components/        # 通用组件
-    │   └── services/          # API 服务
+    │   │   └── ui/           # Shadcn UI 组件
+    │   ├── lib/
+    │   │   ├── api.js        # API 服务封装
+    │   │   ├── utils.js
+    │   │   └── surveyThemes.js
+    │   └── hooks/            # 自定义 Hooks
     ├── package.json
+    ├── .env.example
     └── public/
 ```
 
 ## 🎯 使用示例
 
+### 用户认证
+
+1. 访问首页，点击导航栏登录按钮
+2. 选择登录方式（GitHub / Google / Microsoft）
+3. 完成 OAuth 授权
+4. 自动跳转回应用，登录成功
+
 ### 创建问卷
 
-1. 访问问卷创建页面
+1. 登录后访问问卷创建页面
 2. 输入自然语言描述：
    ```
    创建一个关于新员工培训效果的问卷，包括：
@@ -201,31 +319,60 @@ smart-survey/
    - 培训时长是否合适
    - 开放性建议反馈
    ```
-3. AI 自动生成专业问卷
-4. 可进一步编辑和自定义
+3. AI 自动生成专业问卷并自动关联当前用户
+4. 可在 JSON 编辑器或可视化编辑器中进一步编辑
 5. 保存并获得分享链接
+
+### 管理问卷
+
+1. 登录后点击"我的问卷"
+2. 查看所有自己创建的问卷
+3. 可以预览、复制链接、查看结果
+4. 只有问卷创建者可以编辑问卷
 
 ### 填写问卷
 
-1. 通过分享链接访问问卷
+1. 通过分享链接访问问卷（无需登录）
 2. 填写各类题型（单选、多选、评分等）
 3. 提交答案
 
 ### 查看结果
 
 1. 访问结果页面
-2. 查看统计图表
-3. 下载原始数据
+2. 查看数据概览和统计图表
+3. 查看详细答卷内容
 
 ## 🔧 配置说明
 
 ### 环境变量
 
+#### 后端 (Cloudflare Worker)
+
 | 变量名 | 说明 | 必需 |
 |--------|------|------|
+| **LLM API（选择一个）** |
 | `OPENAI_API_KEY` | OpenAI GPT API 密钥 | 选择一个 |
+| `OPENAI_MODEL` | 使用的模型，如 gpt-4 | 可选 |
 | `GEMINI_API_KEY` | Google Gemini API 密钥 | 选择一个 |
+| `GEMINI_MODEL` | 使用的模型，如 gemini-pro | 可选 |
 | `CLAUDE_API_KEY` | Anthropic Claude API 密钥 | 选择一个 |
+| `CLAUDE_MODEL` | 使用的模型 | 可选 |
+| **认证系统（可选）** |
+| `JWT_SECRET` | JWT 令牌加密密钥 | 启用认证时必需 |
+| `FRONTEND_URL` | 前端应用 URL | 启用认证时必需 |
+| `APP_URL` | Worker URL | 启用认证时必需 |
+| `GITHUB_CLIENT_ID` | GitHub OAuth 客户端 ID | 可选 |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth 客户端密钥 | 可选 |
+| `GOOGLE_CLIENT_ID` | Google OAuth 客户端 ID | 可选 |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 客户端密钥 | 可选 |
+| `MICROSOFT_CLIENT_ID` | Microsoft OAuth 客户端 ID | 可选 |
+| `MICROSOFT_CLIENT_SECRET` | Microsoft OAuth 客户端密钥 | 可选 |
+
+#### 前端
+
+| 变量名 | 说明 | 必需 |
+|--------|------|------|
+| `VITE_API_URL` | 后端 Worker URL | 是 |
 
 ### 数据库表结构
 
@@ -235,8 +382,9 @@ CREATE TABLE surveys (
     id TEXT PRIMARY KEY,
     title TEXT,
     json TEXT NOT NULL,
+    theme_type TEXT DEFAULT 'default',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    owner_id TEXT
+    owner_id TEXT  -- 用户 ID，格式: {provider}:{user_id}
 );
 ```
 
@@ -254,17 +402,28 @@ CREATE TABLE results (
 ## 💡 技术栈
 
 ### 前端
-- **React** - 用户界面框架
+- **React 19** - 用户界面框架
+- **React Router** - 客户端路由
 - **SurveyJS** - 问卷核心库
   - `survey-react-ui` - 问卷渲染
-  - `survey-creator` - 问卷编辑器
-  - `survey-analytics` - 结果分析
+  - `survey-creator-react` - 问卷编辑器
+- **Tailwind CSS** - 样式框架
+- **Shadcn UI** - UI 组件库
+- **Frappe Charts** - 数据可视化
+- **Vite** - 构建工具
 - **Cloudflare Pages** - 静态网站托管
 
 ### 后端
 - **Cloudflare Workers** - Serverless 计算
 - **Cloudflare D1** - SQL 数据库
+- **Arctic** - OAuth 2.0 客户端库
+- **jose** - JWT 令牌管理
 - **多 LLM 支持** - AI 问卷生成
+
+### 认证
+- **OAuth 2.0** - GitHub, Google, Microsoft 登录
+- **JWT** - 会话令牌管理
+- **HttpOnly Cookie** - 安全会话存储
 
 ### AI 模型
 - **OpenAI GPT** - 主推选择

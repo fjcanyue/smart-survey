@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { Model } from "survey-core";
 import { Survey } from "survey-react-ui";
 import "survey-core/survey-core.css";
+import { Sun, Moon } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import {
@@ -14,7 +15,7 @@ import {
   CardTitle
 } from "../components/ui/card";
 import { useToast } from "../hooks/use-toast";
-import { getTheme } from "../lib/surveyThemes";
+import { getTheme, THEME_TYPES } from "../lib/surveyThemes";
 
 const SurveyRunnerPage = () => {
   const { id } = useParams();
@@ -24,7 +25,7 @@ const SurveyRunnerPage = () => {
   const [submitted, setSubmitted] = useState(false);
   const [submittedData, setSubmittedData] = useState(null);
 
-  // 主题类型（从服务器加载）和模式（light/dark，用户可切换）
+  // 主题类型（从服务器加载，不可更改）和模式（light/dark，用户可切换）
   const [themeType, setThemeType] = useState("default");
   const [themeMode, setThemeMode] = useState("light");
 
@@ -84,6 +85,11 @@ const SurveyRunnerPage = () => {
           });
 
           setSurveyModel(model);
+
+          // 设置从服务器获取的主题类型
+          if (data.themeType) {
+            setThemeType(data.themeType);
+          }
         } else {
           throw new Error("问卷数据格式不正确");
         }
@@ -106,17 +112,25 @@ const SurveyRunnerPage = () => {
 
   // 应用主题
   useEffect(() => {
-    if (surveyModel) {
-      const selectedTheme = AVAILABLE_THEMES.find(t => t.id === selectedThemeId);
-      if (selectedTheme) {
-        surveyModel.applyTheme(selectedTheme.theme);
+    if (surveyModel && themeType) {
+      const theme = getTheme(themeType, themeMode);
+      if (theme) {
+        surveyModel.applyTheme(theme);
       }
     }
-  }, [surveyModel, selectedThemeId]);
+  }, [surveyModel, themeType, themeMode]);
 
-  // 处理主题切换
-  const handleThemeChange = (event) => {
-    setSelectedThemeId(event.target.value);
+  // 处理主题模式切换（只能切换 light/dark）
+  const handleThemeModeToggle = () => {
+    setThemeMode(prevMode => prevMode === "light" ? "dark" : "light");
+  };
+
+  // 获取当前主题的显示名称
+  const getCurrentThemeName = () => {
+    const themeTypeObj = THEME_TYPES.find(t => t.id === themeType);
+    const typeName = themeTypeObj ? themeTypeObj.name : "默认";
+    const modeName = themeMode === "light" ? "浅色" : "深色";
+    return `${typeName} (${modeName})`;
   };
 
   if (loading) {
@@ -151,27 +165,27 @@ const SurveyRunnerPage = () => {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <div className="flex-1 space-y-4 py-10">
+      <div className="flex-1 space-y-4 py-5">
         <Card className="mx-auto w-full max-w-4xl">
           <CardHeader>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
-                <label htmlFor="theme-select" className="text-sm font-medium whitespace-nowrap">
+                {/* <span className="text-sm font-medium text-muted-foreground">
                   问卷主题:
-                </label>
-                <select
-                  id="theme-select"
-                  value={selectedThemeId}
-                  onChange={handleThemeChange}
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  {AVAILABLE_THEMES.map(theme => (
-                    <option key={theme.id} value={theme.id}>
-                      {theme.name}
-                    </option>
-                  ))}
-                </select>
+                </span>
+                <span className="text-sm font-medium">
+                  {getCurrentThemeName()}
+                </span> */}
               </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleThemeModeToggle}
+                className="self-start sm:self-auto"
+                title={themeMode === "light" ? "切换到深色模式" : "切换到浅色模式"}
+              >
+                {themeMode === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
