@@ -19,6 +19,7 @@ yarn-error.log*
 # Cloudflare
 .wrangler/
 wrangler.toml.bak
+/backend/wrangler.toml
 
 # IDE
 .vscode/

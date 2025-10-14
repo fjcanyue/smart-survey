@@ -91,7 +91,7 @@ cd backend
 npm install
 
 # 登录 Cloudflare
-npx wrangler auth login
+npx wrangler login
 
 # 创建数据库
 npx wrangler d1 create smart-survey-db
@@ -120,6 +120,8 @@ npx wrangler deploy
 
 ### 4. 部署前端
 
+**手动部署**
+
 ```bash
 cd frontend
 
@@ -133,7 +135,36 @@ npm install
 npm run build
 
 # 部署到 Cloudflare Pages (或手动上传 build 目录)
+npx wrangler pages deploy dist --project-name=your-project-name
 ```
+
+**自动部署**
+
+#### 1. 准备工作
+- 确保你的代码托管在 GitHub 上
+- Cloudflare Pages 项目已创建并连接到你的仓库
+
+#### 2. 自动部署步骤
+
+1. 构建设置配置
+ - 在 Cloudflare Pages 控制台中，进入你的项目设置
+ - 构建配置：
+   - 构建命令: `npm run build`
+   - 构建输出目录: `dist`
+   - 根目录: `frontend`
+
+2. 环境变量配置
+ - 在 Cloudflare Pages 控制台的环境变量设置中添加：
+ - VITE_API_URL: 你的后端 Worker URL (例如: https://your-worker.your-subdomain.workers.dev)
+
+3. 部署
+ - 推送代码到主分支或创建 Pull Request
+ - Cloudflare Pages 会自动触发构建和部署
+ - 部署完成后，你会收到通知和预览链接
+
+#### 3. 验证部署
+访问部署提供的预览链接，应该能看到你的智能问卷系统首页。
+
 
 访问你的 Worker URL + `/api/test`，应该看到：
 ```json

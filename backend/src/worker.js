@@ -575,13 +575,16 @@ async function handleCallback(request, env, provider) {
     // 重定向到前端应用
     const frontendUrl = env.FRONTEND_URL || 'http://localhost:5173';
 
+    // 创建 Headers 对象以支持多个 Set-Cookie 头部
+    const headers = new Headers();
+    headers.append('Location', `${frontendUrl}/dashboard`);
+    headers.append('Set-Cookie', sessionCookie);
+    headers.append('Set-Cookie', clearStateCookie);
+    headers.append('Access-Control-Allow-Origin', '*');
+
     return new Response(null, {
       status: 302,
-      headers: {
-        'Location': `${frontendUrl}/dashboard`,
-        'Set-Cookie': [sessionCookie, clearStateCookie].join(', '),
-        'Access-Control-Allow-Origin': '*'
-      }
+      headers
     });
   } catch (error) {
     console.error(`OAuth 回调处理错误 (${provider}):`, error);
