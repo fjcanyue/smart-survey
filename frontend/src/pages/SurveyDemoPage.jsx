@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, FileText, Maximize2, Minimize2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Model } from "survey-core";
 import { Survey } from "survey-react-ui";
 import "survey-core/survey-core.css";
@@ -292,6 +292,7 @@ const surveyExamples = [
 ];
 
 export default function SurveyDemoPage() {
+  const navigate = useNavigate();
   const [selectedSurvey, setSelectedSurvey] = useState(surveyExamples[0]);
   const [jsonText, setJsonText] = useState("");
   const [surveyModel, setSurveyModel] = useState(null);
@@ -396,10 +397,16 @@ export default function SurveyDemoPage() {
               </div>
             </CardDescription>
           </div>
-          <Button asChild>
-            <Link to="/create">
-              基于此模板创建问卷
-            </Link>
+          <Button onClick={() => {
+            // 传递 JSON 数据和主题到创建页面
+            navigate('/create', {
+              state: {
+                templateJson: JSON.parse(jsonText),
+                themeType: selectedThemeType
+              }
+            });
+          }}>
+            基于此模板创建问卷
           </Button>
         </CardHeader>
         <CardContent className="overflow-hidden rounded-md border bg-background">

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Wand2, Save, Share2, Copy, ExternalLink, Edit2, Code, Maximize2, Minimize2 } from "lucide-react";
 import { SurveyCreator, SurveyCreatorComponent } from "survey-creator-react";
 import { Model } from "survey-core";
@@ -39,6 +39,7 @@ const SurveyCreatorPage = () => {
   const [surveyId, setSurveyId] = useState(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { authenticated, loading: authLoading, user } = useAuth();
@@ -88,13 +89,33 @@ const SurveyCreatorPage = () => {
     return instance;
   }, []);
 
+  // 从模板加载问卷数据
+  useEffect(() => {
+    if (location.state?.templateJson) {
+      const templateJson = location.state.templateJson;
+      const themeType = location.state.themeType || "default";
+      
+      setJsonText(JSON.stringify(templateJson, null, 2));
+      creator.JSON = templateJson;
+      setSelectedThemeType(themeType);
+      
+      toast({
+        title: "模板已加载",
+        description: "您可以在此基础上继续编辑问卷",
+      });
+      
+      // 清除 location.state 以避免重复加载
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, creator, toast]);
+
   // 从 URL 加载已存在的问卷
   useEffect(() => {
     const id = searchParams.get("id");
-    if (id) {
+    if (id && !location.state?.templateJson) {
       loadSurvey(id);
     }
-  }, [searchParams]);
+  }, [searchParams, location.state]);
 
   // 新增：当 JSON 文本变化时，更新预览
   useEffect(() => {
