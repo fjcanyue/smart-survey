@@ -95,6 +95,32 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // 删除问卷
+  const deleteSurvey = async (surveyId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/surveys/${surveyId}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.ok) {
+        return await response.json();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '删除问卷失败');
+      }
+    } catch (error) {
+      console.error('删除问卷失败:', error);
+      throw error;
+    }
+  };
+
   // 组件挂载时检查认证状态
   useEffect(() => {
     checkAuth();
@@ -122,6 +148,7 @@ export function AuthProvider({ children }) {
     logout,
     checkAuth,
     getUserSurveys,
+    deleteSurvey,
   };
 
   return (

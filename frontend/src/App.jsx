@@ -10,6 +10,7 @@ import SurveyCreatorPage from "./pages/SurveyCreatorPage";
 import SurveyRunnerPage from "./pages/SurveyRunnerPage";
 import ResultsPage from "./pages/ResultsPage";
 import DashboardPage from "./pages/DashboardPage";
+import SurveyDemoPage from "./pages/SurveyDemoPage";
 
 // 登录按钮组件
 function LoginButtons() {
@@ -77,8 +78,8 @@ function AppContent() {
   const { authenticated, loading } = useAuth();
 
   const navItems = [
-    { to: "/", label: "首页" },
-    { to: "/create", label: "创建问卷" }
+    // { to: "/", label: "首页" },
+    // { to: "/create", label: "创建问卷" }
   ];
 
   // 判断是否为问卷答题页面
@@ -97,8 +98,9 @@ function AppContent() {
       {!isSurveyPage && (
         <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur">
           <div className="container flex h-16 items-center justify-between">
-            <Link to="/" className="text-lg font-semibold">
-              智能问卷
+            <Link to="/" className="flex items-center gap-2 text-lg font-semibold">
+              <img src="/favicon.png" alt="智能问卷 Logo" className="h-8 w-8" />
+              <span>智能问卷</span>
             </Link>
             <div className="flex items-center gap-4">
               <nav className="flex items-center gap-2">
@@ -109,7 +111,7 @@ function AppContent() {
                 ))}
               </nav>
               {authenticated ? <UserMenu /> : (
-                <Button asChild variant="default" size="sm">
+                <Button asChild variant="ghost" size="sm">
                   <Link to="/login">登录</Link>
                 </Button>
               )}
@@ -125,6 +127,7 @@ function AppContent() {
           <Route path="/survey/:id" element={<SurveyRunnerPage />} />
           <Route path="/results/:id" element={<ResultsPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/survey/demo" element={<SurveyDemoPage />} />
         </Routes>
       </main>
       <Toaster />

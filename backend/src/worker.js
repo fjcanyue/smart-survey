@@ -6,7 +6,8 @@ import {
   saveResult,
   getResults,
   validateDatabase,
-  listSurveys
+  listSurveys,
+  deleteSurvey
 } from './services/database.js';
 import {
   initializeOAuthClients,
@@ -103,6 +104,12 @@ export default {
     if (url.pathname.startsWith("/api/results/") && request.method === "GET") {
       const surveyId = url.pathname.split("/")[3];
       return handleGetResults(request, env, ctx, surveyId);
+    }
+
+    // 删除问卷
+    if (url.pathname.startsWith("/api/surveys/") && request.method === "DELETE") {
+      const surveyId = url.pathname.split("/")[3];
+      return handleDeleteSurvey(request, env, ctx, surveyId);
     }
 
     return new Response("Smart Survey Backend is running!");
@@ -804,6 +811,88 @@ async function handleGetMySurveys(request, env, ctx) {
     console.error('获取用户问卷列表错误:', error);
     return new Response(JSON.stringify({
       error: "获取问卷列表失败",
+      details: error.message
+    }), {
+      headers: {
+        "Content-Type": "application/json",
+        ...getCorsHeaders(request, env)
+      },
+      status: 500
+    });
+  }
+}
+
+/**
+ * 删除问卷
+ */
+async function handleDeleteSurvey(request, env, ctx, surveyId) {
+  try {
+    // 检查用户是否已登录
+    const user = await getUserFromRequest(request, env.JWT_SECRET);
+    if (!user) {
+      return new Response(JSON.stringify({ error: "未登录，请先登录" }), {
+        headers: {
+          "Content-Type": "application/json",
+          ...getCorsHeaders(request, env)
+        },
+        status: 401
+      });
+    }
+
+    if (!surveyId) {
+      return new Response(JSON.stringify({ error: "缺少问卷 ID" }), {
+        headers: { "Content-Type": "application/json" },
+        status: 400
+      });
+    }
+
+    if (!env.DB) {
+      return new Response(JSON.stringify({ error: "数据库未配置" }), {
+        headers: { "Content-Type": "application/json" },
+        status: 500
+      });
+    }
+
+    // 检查问卷是否存在，并验证所有权
+    const existingSurvey = await getSurvey(env.DB, surveyId);
+    if (!existingSurvey) {
+      return new Response(JSON.stringify({ error: "问卷不存在" }), {
+        headers: {
+          "Content-Type": "application/json",
+          ...getCorsHeaders(request, env)
+        },
+        status: 404
+      });
+    }
+
+    // 验证用户是否拥有该问卷
+    if (existingSurvey.ownerId && existingSurvey.ownerId !== user.userId) {
+      return new Response(JSON.stringify({ error: "无权限删除此问卷" }), {
+        headers: {
+          "Content-Type": "application/json",
+          ...getCorsHeaders(request, env)
+        },
+        status: 403
+      });
+    }
+
+    // 删除问卷
+    await deleteSurvey(env.DB, surveyId);
+
+    console.log(`问卷已删除，ID: ${surveyId}, 用户: ${user.userId}`);
+    return new Response(JSON.stringify({
+      success: true,
+      message: "问卷删除成功"
+    }), {
+      headers: {
+        "Content-Type": "application/json",
+        ...getCorsHeaders(request, env)
+      }
+    });
+  } catch (error) {
+    console.error('删除问卷时发生错误:', error);
+    return new Response(JSON.stringify({
+      error: "删除问卷失败",
       details: error.message
     }), {
       headers: {

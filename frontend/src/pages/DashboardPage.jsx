@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Eye, Copy, BarChart2, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/use-toast';
@@ -7,20 +8,12 @@ import { useToast } from '../hooks/use-toast';
 function DashboardPage() {
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { authenticated, user, getUserSurveys } = useAuth();
+  const [deletingId, setDeletingId] = useState(null);
+  const { authenticated, user, getUserSurveys, deleteSurvey } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!authenticated) {
-      navigate('/');
-      return;
-    }
-
-    loadSurveys();
-  }, [authenticated, navigate]);
-
-  const loadSurveys = async () => {
+  const loadSurveys = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getUserSurveys();
@@ -35,14 +28,43 @@ function DashboardPage() {
     } finally {
       setLoading(false);
     }
+  }, [getUserSurveys, toast]);
+
+  useEffect(() => {
+    if (!authenticated) {
+      navigate('/');
+      return;
+    }
+
+    loadSurveys();
+  }, [authenticated, navigate, loadSurveys]);
+
+  const handleEditSurvey = (surveyId) => {
+    navigate(`/create?id=${surveyId}`);
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+  const handleDeleteSurvey = async (surveyId) => {
+    const confirmed = window.confirm('确定要删除该问卷吗？此操作无法撤销。');
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(surveyId);
+      await deleteSurvey(surveyId);
+      toast({
+        title: "已删除",
+        description: "问卷已成功删除",
+      });
+      await loadSurveys();
+    } catch (error) {
+      console.error('删除问卷失败:', error);
+      toast({
+        title: "删除失败",
+        description: error.message || "请稍后重试",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   if (!authenticated) {
@@ -90,7 +112,9 @@ function DashboardPage() {
                 <SurveyCard
                   key={survey.id}
                   survey={survey}
-                  onUpdate={loadSurveys}
+                  onEdit={handleEditSurvey}
+                  onDelete={handleDeleteSurvey}
+                  deletingId={deletingId}
                 />
               ))}
             </div>
@@ -102,8 +126,9 @@ function DashboardPage() {
 }
 
 // 问卷卡片组件
-function SurveyCard({ survey, onUpdate }) {
+function SurveyCard({ survey, onEdit, onDelete, deletingId }) {
   const { toast } = useToast();
+  const isDeleting = deletingId === survey.id;
 
   const copyLink = (surveyId) => {
     const url = `${window.location.origin}/survey/${surveyId}`;
@@ -127,20 +152,39 @@ function SurveyCard({ survey, onUpdate }) {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" asChild>
-            <Link to={`/survey/${survey.id}`}>预览</Link>
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => copyLink(survey.id)}
-          >
-            复制链接
-          </Button>
-          <Button size="sm" variant="outline" asChild>
-            <Link to={`/results/${survey.id}`}>查看结果</Link>
-          </Button>
+        <div className="flex flex-wrap gap-1">
+          <IconTooltip label="预览">
+            <Button size="icon" variant="ghost" asChild aria-label="预览">
+              <Link to={`/survey/${survey.id}`}><Eye className="h-4 w-4" /></Link>
+            </Button>
+          </IconTooltip>
+          <IconTooltip label="复制链接">
+            <Button size="icon" variant="ghost" onClick={() => copyLink(survey.id)} aria-label="复制链接">
+              <Copy className="h-4 w-4" />
+            </Button>
+          </IconTooltip>
+          <IconTooltip label="查看结果">
+            <Button size="icon" variant="ghost" asChild aria-label="查看结果">
+              <Link to={`/results/${survey.id}`}><BarChart2 className="h-4 w-4" /></Link>
+            </Button>
+          </IconTooltip>
+          <IconTooltip label="编辑">
+            <Button size="icon" variant="ghost" onClick={() => onEdit?.(survey.id)} aria-label="编辑">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </IconTooltip>
+          <IconTooltip label={isDeleting ? '删除中' : '删除'}>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-destructive"
+              onClick={() => onDelete?.(survey.id)}
+              disabled={isDeleting}
+              aria-label={isDeleting ? '删除中' : '删除'}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </IconTooltip>
         </div>
 
         <div className="text-xs text-muted-foreground">
@@ -161,3 +205,14 @@ function formatDate(dateString) {
 }
 
 export default DashboardPage;
+
+function IconTooltip({ label, children }) {
+  return (
+    <div className="relative group">
+      {children}
+      <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-popover px-2 py-1 text-xs text-popover-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+        {label}
+      </span>
+    </div>
+  );
+}

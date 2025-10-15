@@ -2,6 +2,12 @@
 
 基于 SurveyJS 与大语言模型的轻量级在线问卷调查系统，支持自然语言生成问卷，零成本部署在 Cloudflare 生态系统上。
 
+*智能问卷创建页面*
+![智能问卷创建页面](assets/screenshot_create.png)
+
+*智能问卷统计页面*
+![智能问卷统计页面](assets/screenshot_stat.png)
+
 ## ✨ 特性
 
 - 🤖 **AI 问卷生成**：通过自然语言描述自动生成专业问卷
