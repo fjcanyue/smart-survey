@@ -31,7 +31,7 @@ const SurveyRunnerPage = () => {
 
   const handleSubmit = useCallback(async (data) => {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8787";
+      const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8787";
 
       const response = await fetch(`${API_BASE_URL}/api/results/${id}`, {
         method: "POST",
@@ -68,7 +68,7 @@ const SurveyRunnerPage = () => {
     const fetchSurvey = async () => {
       setLoading(true);
       try {
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8787";
+        const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8787";
 
         const response = await fetch(`${API_BASE_URL}/api/surveys/${id}`);
 

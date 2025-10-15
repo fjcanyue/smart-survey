@@ -149,16 +149,13 @@ function getCorsHeaders(request, env) {
   if (origin && allowedOrigins.includes(origin)) {
     responseOrigin = origin;
   }
-  // 如果没有配置环境变量，且 Origin 是 Cloudflare 相关域名，自动允许
-  else if (origin && !env.FRONTEND_URL && !env.APP_URL) {
-    // 允许所有 Cloudflare Pages (*.pages.dev) 和 Workers (*.workers.dev) 域名
-    if (origin.endsWith('.pages.dev') || origin.endsWith('.workers.dev')) {
-      responseOrigin = origin;
-    }
-    // 也允许 localhost 开发环境
-    else if (origin.startsWith('http://localhost:')) {
-      responseOrigin = origin;
-    }
+  // 自动允许所有 Cloudflare Pages (*.pages.dev) 和 Workers (*.workers.dev) 域名
+  else if (origin && (origin.endsWith('.pages.dev') || origin.endsWith('.workers.dev'))) {
+    responseOrigin = origin;
+  }
+  // 也允许 localhost 开发环境
+  else if (origin && origin.startsWith('http://localhost:')) {
+    responseOrigin = origin;
   }
   // 如果配置了环境变量但 Origin 不在列表中，使用配置的 FRONTEND_URL
   else if (env.FRONTEND_URL) {
@@ -190,13 +187,27 @@ async function handleGenerateSurvey(request, env, ctx) {
       });
     }
 
-    const { prompt } = await request.json();
+    const { prompt, surveyId } = await request.json();
 
     if (!prompt || prompt.trim() === '') {
       return new Response(JSON.stringify({ error: "缺少问卷描述" }), {
         headers: { "Content-Type": "application/json" },
         status: 400
       });
+    }
+
+    // 如果提供了 surveyId，验证用户是否拥有该问卷
+    if (surveyId && env.DB) {
+      const existingSurvey = await getSurvey(env.DB, surveyId);
+      if (existingSurvey && existingSurvey.ownerId && existingSurvey.ownerId !== user.userId) {
+        return new Response(JSON.stringify({ error: "无权限修改此问卷" }), {
+          headers: {
+            "Content-Type": "application/json",
+            ...getCorsHeaders(request, env)
+          },
+          status: 403
+        });
+      }
     }
 
     // 调用 LLM API 生成问卷
@@ -213,26 +224,30 @@ async function handleGenerateSurvey(request, env, ctx) {
       });
     }
 
-    // 生成唯一的问卷 ID
-    const surveyId = generateSurveyId();
+    // 如果提供了 surveyId 则更新，否则创建新问卷
+    let finalSurveyId = surveyId;
+    if (!finalSurveyId) {
+      // 生成新的问卷 ID
+      finalSurveyId = generateSurveyId();
+    }
 
-    // 如果配置了数据库，自动保存生成的问卷，并关联用户
+    // 如果配置了数据库，保存生成的问卷，并关联用户
     if (env.DB) {
       try {
-        await saveSurvey(env.DB, surveyId, surveyJson, null, 'default', user.userId);
-        console.log(`问卷已自动保存到数据库，ID: ${surveyId}, Owner: ${user.userId}`);
+        await saveSurvey(env.DB, finalSurveyId, surveyJson, null, 'default', user.userId);
+        console.log(`问卷已保存到数据库，ID: ${finalSurveyId}, Owner: ${user.userId}, 操作: ${surveyId ? '更新' : '创建'}`);
       } catch (dbError) {
-        console.error('自动保存问卷到数据库失败:', dbError);
+        console.error('保存问卷到数据库失败:', dbError);
         // 不阻塞响应，只记录错误
       }
     }
 
     const response = {
-      id: surveyId,
+      id: finalSurveyId,
       json: surveyJson
     };
 
-    console.log(`问卷生成成功，ID: ${surveyId}`);
+    console.log(`问卷生成成功，ID: ${finalSurveyId}`);
     return new Response(JSON.stringify(response), {
       headers: {
         "Content-Type": "application/json",

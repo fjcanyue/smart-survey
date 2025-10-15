@@ -48,6 +48,9 @@ function UserMenu() {
 
   return (
     <div className="flex items-center gap-3">
+      <Button variant="ghost" asChild>
+        <Link to="/dashboard">我的问卷</Link>
+      </Button>
       <div className="flex items-center gap-2">
         {user.avatar && (
           <img
@@ -58,9 +61,6 @@ function UserMenu() {
         )}
         <span className="text-sm font-medium">{user.name}</span>
       </div>
-      <Button variant="ghost" asChild>
-        <Link to="/dashboard">我的问卷</Link>
-      </Button>
       <Button
         variant="outline"
         size="sm"

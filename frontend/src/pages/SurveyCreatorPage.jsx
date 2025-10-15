@@ -175,16 +175,24 @@ const SurveyCreatorPage = () => {
 
     setLoading(true);
     try {
-      const data = await surveyAPI.generateSurvey(prompt);
+      // 如果已有 surveyId，传递给后端以更新现有问卷
+      const data = await surveyAPI.generateSurvey(prompt, surveyId);
 
       // 将生成的问卷 JSON 加载到编辑器中
       if (data.json) {
         creator.JSON = data.json;
         setJsonText(JSON.stringify(data.json, null, 2));
-        setSurveyId(data.id); // 保存生成的问卷 ID
+
+        // 如果是新创建的问卷，保存 ID；如果是更新，ID 不变
+        if (data.id && !surveyId) {
+          setSurveyId(data.id);
+          // 更新 URL 以便刷新页面时可以继续编辑
+          navigate(`/create?id=${data.id}`, { replace: true });
+        }
+
         toast({
           title: "生成成功！",
-          description: "问卷已生成，您可以继续在编辑器中调整",
+          description: surveyId ? "问卷已重新生成并更新" : "问卷已生成，您可以继续在编辑器中调整",
         });
       } else {
         throw new Error("返回的数据格式不正确");
@@ -355,12 +363,14 @@ const SurveyCreatorPage = () => {
         <CardFooter className="flex flex-wrap gap-3">
           <Button onClick={handleGenerateSurvey} disabled={loading} className={cn({ "cursor-progress": loading })}>
             <Wand2 className="mr-2 h-4 w-4" />
-            {loading ? "生成中..." : "智能生成问卷"}
+            {loading ? "生成中..." : surveyId ? "重新生成问卷" : "智能生成问卷"}
           </Button>
           <Button variant="outline" onClick={() => {
             const emptyJson = { pages: [] };
             setJsonText(JSON.stringify(emptyJson, null, 2));
             creator.JSON = emptyJson;
+            setSurveyId(null);
+            navigate('/create', { replace: true });
           }}>
             清空内容
           </Button>

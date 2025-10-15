@@ -65,10 +65,10 @@ export const authAPI = {
  */
 export const surveyAPI = {
   // 生成问卷
-  generateSurvey: async (prompt) => {
+  generateSurvey: async (prompt, surveyId = null) => {
     return apiRequest('/api/surveys/generate', {
       method: 'POST',
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, surveyId }),
     });
   },
 
