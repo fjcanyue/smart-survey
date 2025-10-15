@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
 
 import { Button } from "./components/ui/button";
+import { Github } from "lucide-react";
 import { Toaster } from "./components/ui/toaster";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import HomePage from "./pages/HomePage";
@@ -98,10 +99,26 @@ function AppContent() {
       {!isSurveyPage && (
         <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur">
           <div className="container flex h-16 items-center justify-between">
-            <Link to="/" className="flex items-center gap-2 text-lg font-semibold">
-              <img src="/favicon.png" alt="智能问卷 Logo" className="h-8 w-8" />
-              <span>智能问卷</span>
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link to="/" className="flex items-center gap-2 text-lg font-semibold">
+                <img src="/favicon.png" alt="智能问卷 Logo" className="h-8 w-8" />
+                <span>智能问卷</span>
+              </Link>
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                aria-label="GitHub 仓库"
+              >
+                <a
+                  href="https://github.com/fjcanyue/smart-survey"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Github className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
             <div className="flex items-center gap-4">
               <nav className="flex items-center gap-2">
                 {navItems.map((item) => (
