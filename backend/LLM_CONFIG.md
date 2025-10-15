@@ -31,6 +31,7 @@
 ### 3. Anthropic Claude
 
 - `CLAUDE_API_KEY` - Claude API 密钥
+- 支持 claude-sonnet, claude-haiku, claude-opus 等模型
 
 ## 配置方法
 
@@ -74,6 +75,10 @@ wrangler secret put OPENAI_BASE_URL
 # 设置自定义模型（可选）
 wrangler secret put OPENAI_MODEL
 # 输入模型名称后按 Enter
+
+# 设置其他提供商（可选）
+wrangler secret put GEMINI_API_KEY
+wrangler secret put CLAUDE_API_KEY
 ```
 
 ## 配置示例
@@ -104,13 +109,19 @@ OPENAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4
 OPENAI_MODEL=glm-4
 ```
 
-### 示例 4: 使用通义千问
+### 示例 5: 多提供商配置
 
 ```bash
-# .dev.vars
+# .dev.vars - 同时配置多个提供商，实现故障转移
 OPENAI_API_KEY=sk-xxxxxx
-OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-OPENAI_MODEL=qwen-turbo
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-3.5-turbo
+
+GEMINI_API_KEY=xxxxxxxxxxxxxxxxx
+GEMINI_MODEL=gemini-pro
+
+CLAUDE_API_KEY=sk-ant-xxxxxx
+CLAUDE_MODEL=claude-sonnet
 ```
 
 ## 优先级
@@ -141,9 +152,13 @@ curl -X POST http://localhost:8787/api/surveys/generate \
 
 A: 因为这种方式只需要配置 BASE_URL 和 MODEL，就可以支持几乎所有主流的国内外 LLM 厂商，配置简单且灵活。
 
-### Q: 是否可以同时配置多个提供商？
+### Q: 如何选择合适的模型？
 
-A: 可以。系统会按优先级使用，并在失败时自动切换到备用提供商。
+A: 考虑以下因素：
+- **成本**: gpt-3.5-turbo < claude-haiku < gemini-pro < gpt-4
+- **性能**: gpt-4 > claude-sonnet > gemini-pro > gpt-3.5-turbo
+- **上下文长度**: moonshot-v1-32k (32k tokens) > claude-sonnet (200k tokens) > gpt-4 (32k tokens)
+- **中文能力**: 智谱 AI > 通义千问 > DeepSeek > OpenAI
 
 ### Q: 如何获取各厂商的 API Key？
 
@@ -154,10 +169,56 @@ A: 请访问各厂商的官方网站申请：
 - 智谱 AI: https://open.bigmodel.cn/
 - 通义千问: https://dashscope.aliyun.com/
 - Moonshot: https://platform.moonshot.cn/
+- Anthropic: https://console.anthropic.com/
+- Google: https://ai.google.dev/
 
 ## 注意事项
 
-1. **不要将 API Key 提交到版本控制系统**（`.dev.vars` 和 `.env` 已加入 .gitignore）
-2. **生产环境请使用 `wrangler secret put` 而不是 `.dev.vars`**
-3. **注意各厂商的 API 调用限制和费用**
-4. **建议定期轮换 API Key 以保证安全**
+1. **安全存储**: API Key 是敏感信息，不要提交到版本控制系统
+2. **成本控制**: 不同模型价格差异很大，建议设置预算提醒
+3. **错误处理**: 系统已实现多提供商故障转移，但仍建议监控 API 调用状态
+4. **合规性**: 确保符合各厂商的服务条款和数据隐私政策
+5. **定期轮换**: 建议定期更新 API Key 以保证安全
+6. **生产环境**: 务必使用 `wrangler secret put` 而不是 `.dev.vars`
+
+## 高级配置
+
+### 自定义 Prompt 模板
+
+如需修改 AI 生成问卷的 Prompt，可以编辑 `backend/src/services/llm.js` 文件中的 `systemPrompt` 和 `userPromptTemplate`。
+
+### 调整生成参数
+
+可以在 `backend/src/services/llm.js` 中调整以下参数：
+- `temperature`: 控制输出随机性 (0-2)
+- `max_tokens`: 最大生成 token 数
+- `top_p`: 核采样参数
+- `frequency_penalty`: 频率惩罚
+
+### 自定义错误处理
+
+系统已实现基本的错误处理和重试机制，如需自定义可以在 `generateSurveyFromPrompt` 函数中添加逻辑。
+
+## 故障排除
+
+### 1. API 调用失败
+- 检查 API Key 是否正确
+- 确认网络连接正常
+- 查看提供商后台是否有异常
+
+### 2. 生成结果不符合预期
+- 尝试不同的模型
+- 调整 Prompt 描述
+- 修改生成参数
+
+### 3. 成本过高
+- 检查使用量统计
+- 考虑使用更便宜的模型
+- 设置使用量提醒
+
+### 4. 响应速度慢
+- 尝试不同的提供商
+- 检查网络连接
+- 考虑缓存机制
+
+如遇问题，请查看 Worker 日志获取详细错误信息。

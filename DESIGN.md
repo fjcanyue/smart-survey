@@ -24,7 +24,8 @@
 
 | 模块 | 技术 | 理由 |
 | :--- | :--- | :--- |
-| **前端框架** | React / Vue | SurveyJS 对主流前端框架支持良好，提供官方组件库 (`survey-react-ui` / `survey-vue-ui`)，开发效率高。本项目以 **React** 为例。 |
+| **前端框架** | React 19 | SurveyJS 对主流前端框架支持良好，提供官方组件库 (`survey-react-ui` / `survey-creator-react`)，开发效率高。本项目采用 **React 19** + **Shadcn UI** + **Tailwind CSS** 的现代化技术栈。 |
+| **图表库** | Frappe Charts | 轻量级数据可视化库，适合展示问卷统计结果，与 SurveyJS 配合良好。 |
 | **问卷核心库** | SurveyJS | 功能强大且成熟的开源问卷库，支持 JSON 定义表单、动态逻辑、多主题样式和丰富的题型。其 `Survey Creator` 组件非常适合与 AI 生成的 JSON 结合。 |
 | **前端托管** | Cloudflare Pages | 提供全球 CDN 加速的免费静态网站托管服务，与 Workers 无缝集成，支持自定义域名，非常适合部署 SPA 应用。 |
 | **后端服务** | Cloudflare Workers | Serverless 计算平台，在边缘节点运行，延迟低。免费套餐额度充足，适合作为 API 网关、处理表单提交和与 LLM 及数据库交互。 |
@@ -41,10 +42,12 @@
 |   用户浏览器    |      |  Cloudflare Network |      | External Services   |
 +----------------+      +---------------------+      +---------------------+
 |                |      |                     |      |                     |
-|  React (SPA)   |----->| Cloudflare Pages    |      |                     |
-| - Survey Creator |      |  (静态资源托管)     |      |                     |
+|  React 19 SPA  |----->| Cloudflare Pages    |      |                     |
+| - AuthContext  |      |  (静态资源托管)     |      |                     |
+| - Survey Creator |      |                     |      |                     |
 | - Survey Runner  |      |                     |      |                     |
 | - Results Viewer |      |                     |      |                     |
+| - Dashboard    |      |                     |      |                     |
 |                |      |                     |      |                     |
 |       |        |      |                     |      |                     |
 |       |        |      +---------------------+      |                     |
@@ -53,7 +56,8 @@
 |         (API 请求)      |  (Serverless后端)   | (LLM API Call)      |    LLM API          |
 |                        |                     |                     | (e.g., OpenAI)      |
 |                        |   - API 路由        |                     |                     |
-|                        |   - 业务逻辑        |                     |                     |
+|                        |   - OAuth 认证      |                     |                     |
+|                        |   - JWT 管理        |                     |                     |
 |                        |   - LLM 代理        |                     |                     |
 |                        |   - 数据库交互      |                     |                     |
 |                        +---------+-----------+                     +---------------------+
@@ -63,7 +67,7 @@
 |                      +-----------v-----------+
 |                      |    Cloudflare D1      |
 |                      |  (Serverless SQL DB)  |
-|                      | - `surveys` 表        |
+|                      | - `surveys` 表 (含 owner_id) |
 |                      | - `results` 表        |
 |                      +-----------------------+
 
@@ -82,7 +86,7 @@
 
 2.  **填写问卷**：
 
-      * 用户通过一个唯一的 URL (如 `https://<your-domain>/s/<survey_id>`) 访问问卷。
+      * 用户通过一个唯一的 URL (如 `https://<your-domain>/survey/<survey_id>`) 访问问卷。
       * 前端应用根据 `survey_id` 向 Worker 请求问卷的 JSON 定义。
       * Worker 从 D1 数据库中查询并返回对应的问卷 JSON。
       * 前端的 Survey Runner 组件渲染问卷。
@@ -95,7 +99,14 @@
       * 问卷创建者访问结果页面 (如 `https://<your-domain>/results/<survey_id>`)。
       * 前端向 Worker 请求指定 `survey_id` 的所有答题结果。
       * Worker 从 D1 的 `results` 表中查询所有相关记录，并返回给前端。
-      * 前端使用图表库（如 Chart.js）或 SurveyJS 自带的分析组件 (`survey-analytics`) 对数据进行可视化展示。
+      * 前端使用 Frappe Charts 对数据进行可视化展示。
+
+4.  **用户认证与管理**：
+
+      * 用户通过 OAuth 2.0 (GitHub/Google/Microsoft) 登录
+      * Worker 生成 JWT 令牌并存储在 HttpOnly Cookie 中
+      * 用户访问 "我的问卷" 页面查看自己创建的问卷
+      * 只有问卷创建者可以编辑和管理自己的问卷
 
 ### 4\. 模块设计
 
@@ -103,34 +114,44 @@
 
   * **页面/组件**：
       * `HomePage`：项目介绍，创建新问卷的入口。
+      * `LoginPage`：OAuth 登录页面（新增）
+      * `DashboardPage`：用户管理界面，展示"我的问卷"列表（新增）
       * `SurveyCreatorPage`：
           * 一个文本输入框用于提交自然语言需求。
           * 集成 `SurveyCreatorComponent`，用于显示和编辑 AI 生成的问卷 JSON。
           * 提供保存、预览和分享问卷的功能。
+          * 支持用户认证状态管理
       * `SurveyRunnerPage`：
           * 动态加载路由参数中的 `survey_id`。
           * 集成 `Survey` 组件，用于渲染和运行问卷。
       * `ResultsPage`：
           * 展示答题数据的统计信息和原始数据列表。
-          * 可以使用 `survey-analytics` 包或自定义图表。
-  * **状态管理**：使用 React Context 或 Zustand 等轻量级状态管理库来管理全局状态（如用户信息、API 加载状态等）。
+          * 使用 Frappe Charts 进行数据可视化（更新）
+  * **状态管理**：使用 React Context (`AuthContext`) 管理全局认证状态，以及用户信息等全局状态。
 
 #### 4.2 后端服务 (Cloudflare Worker)
 
   * **API Endpoints**：
-      * `POST /api/surveys/generate`：AI 生成问卷。
-          * Request Body: `{ "prompt": "创建一个关于..." }`
-          * Response Body: `{ "id": "...", "json": { ... } }`
-      * `POST /api/surveys`：保存/更新问卷。
-          * Request Body: `{ "id": "...", "json": { ... } }`
-          * Response Body: `{ "success": true }`
-      * `GET /api/surveys/:id`：获取指定问卷的 JSON 定义。
-          * Response Body: `{ "json": { ... } }`
-      * `POST /api/results/:surveyId`：提交问卷答案。
-          * Request Body: `{ "data": { "question1": "answer1", ... } }`
-          * Response Body: `{ "success": true }`
-      * `GET /api/results/:surveyId`：获取指定问卷的所有答案。
-          * Response Body: `[{ "id": "...", "data": { ... }, "createdAt": "..." }, ...]`
+      * **认证相关**：
+        * `GET /api/auth/login/{provider}`：发起 OAuth 登录 (GitHub/Google/Microsoft)
+        * `GET /api/auth/callback/{provider}`：OAuth 回调处理
+        * `POST /api/auth/logout`：登出
+        * `GET /api/auth/me`：获取当前用户信息
+        * `GET /api/surveys/my`：获取当前用户的问卷列表（新增）
+      * **问卷相关**：
+        * `POST /api/surveys/generate`：AI 生成问卷。
+            * Request Body: `{ "prompt": "创建一个关于..." }`
+            * Response Body: `{ "id": "...", "json": { ... } }`
+        * `POST /api/surveys`：保存/更新问卷。
+            * Request Body: `{ "id": "...", "json": { ... } }`
+            * Response Body: `{ "success": true }`
+        * `GET /api/surveys/:id`：获取指定问卷的 JSON 定义。
+            * Response Body: `{ "json": { ... } }`
+        * `POST /api/results/:surveyId`：提交问卷答案。
+            * Request Body: `{ "data": { "question1": "answer1", ... } }`
+            * Response Body: `{ "success": true }`
+        * `GET /api/results/:surveyId`：获取指定问卷的所有答案。
+            * Response Body: `[{ "id": "...", "data": { ... }, "createdAt": "..." }, ...]`
 
 #### 4.3 数据存储 (Cloudflare D1)
 
@@ -141,8 +162,9 @@
             id TEXT PRIMARY KEY,       -- 问卷唯一ID (e.g., UUID)
             title TEXT,                -- 问卷标题 (可以从JSON中提取)
             json TEXT NOT NULL,        -- SurveyJS 的 JSON 结构
+            theme_type TEXT DEFAULT 'default', -- 主题类型
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            owner_id TEXT              -- （可选）未来扩展多用户时使用
+            owner_id TEXT NOT NULL     -- 用户 ID (格式: {provider}:{user_id})
         );
         ```
       * **`results` 表**：存储用户的答题结果。
@@ -161,6 +183,8 @@
 
   * **核心逻辑**：此模块的关键在于 **Prompt Engineering (提示词工程)**。
   * **实现方式**：在 Cloudflare Worker 中，创建一个函数 `generateSurveyFromPrompt(prompt: string)`。
+  * **支持的 LLM**：OpenAI GPT / Google Gemini / Anthropic Claude / 其他 OpenAI 兼容 API
+  * **OpenAI 兼容 API 支持**：支持 DeepSeek、智谱 AI、通义千问、Moonshot 等国内厂商
   * **Prompt 示例**：
       * **System Prompt (系统指令)**：这个指令非常重要，用于规范 LLM 的行为。
         ```
@@ -175,6 +199,7 @@
     2.  通过 `fetch` 调用 LLM 的 API (例如 OpenAI 的 `v1/chat/completions`)。
     3.  在 Worker 的环境变量中安全地存储 LLM 的 `API_KEY`。
     4.  接收 LLM 返回的文本，并尝试 `JSON.parse()`。如果解析失败，可以进行重试或返回错误。
+    5.  生成的问卷自动关联当前用户并保存到数据库
 
 ### 5\. 部署方案
 
@@ -199,15 +224,21 @@
 ### 6\. 安全性考虑
 
   * **API 密钥管理**：LLM API Key 必须存储在 Cloudflare Worker 的 Secrets 中，绝不能暴露在前端代码里。
+  * **OAuth 安全**：实现 state 参数验证防止 CSRF 攻击
+  * **JWT 安全**：使用 HttpOnly Cookie 存储 JWT 令牌，设置合理的过期时间
   * **输入验证**：所有来自客户端的输入（尤其是提交的问卷结果）都应在 Worker 端进行验证和清理，防止注入攻击。
+  * **用户权限控制**：实现基于 owner_id 的问卷访问控制，只有创建者可以编辑自己的问卷
   * **速率限制**：可以为调用 LLM 的 API 端点设置速率限制，防止滥用和不必要的开销。Cloudflare Workers 提供了实现速率限制的工具。
   * **CORS**：正确配置 Worker 的 CORS 策略，确保只有您的前端域名可以访问 API。
+  * **Cookie 安全**：生产环境使用 Secure 和 SameSite 属性
 
 ### 7\. 扩展性与未来展望
 
-  * **用户认证**：集成 Cloudflare Access 或第三方认证服务（如 Auth0），实现多用户问卷管理。
   * **高级数据分析**：在结果展示页面引入更复杂的图表和数据下钻功能。
   * **模板市场**：创建一个问卷模板库，用户可以直接从模板创建问卷。
   * **Webhook 集成**：当有新问卷提交时，通过 Webhook 通知到其他服务（如 Slack, Google Sheets）。
   * **R2 存储优化**：对于需要收集大量问卷（百万级）的场景，可以切换到 R2 存储答题结果，并配合 Cloudflare Workers Analytics Engine 进行异步分析，以降低成本和提高写入性能。
+  * **移动应用**：开发移动端应用，支持移动端问卷填写和管理
+  * **团队协作**：支持问卷共享和团队协作功能
+  * **多语言支持**：支持国际化和多语言问卷
 

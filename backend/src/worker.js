@@ -36,7 +36,7 @@ export default {
 
     // Handle CORS preflight requests
     if (request.method === "OPTIONS") {
-      return handleOptions(request);
+      return handleOptions(request, env);
     }
 
     // Route handling
@@ -109,14 +109,12 @@ export default {
   }
 };
 
-function handleOptions(request) {
-  const origin = request.headers.get('Origin') || '*';
+function handleOptions(request, env) {
   return new Response(null, {
     headers: {
-      "Access-Control-Allow-Origin": origin,
+      ...getCorsHeaders(request, env),
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Allow-Credentials": "true",
     },
   });
 }
@@ -124,10 +122,56 @@ function handleOptions(request) {
 /**
  * 获取 CORS 响应头
  */
-function getCorsHeaders(request) {
-  const origin = request.headers.get('Origin') || '*';
+function getCorsHeaders(request, env) {
+  const origin = request.headers.get('Origin');
+
+  // 从环境变量构建允许的域名列表
+  const allowedOrigins = [];
+
+  // 添加前端 URL（生产环境）
+  if (env.FRONTEND_URL) {
+    allowedOrigins.push(env.FRONTEND_URL);
+  }
+
+  // 添加应用 URL（如果配置了）
+  if (env.APP_URL) {
+    allowedOrigins.push(env.APP_URL);
+  }
+
+  // 开发环境的本地地址
+  allowedOrigins.push('http://localhost:5173');
+  allowedOrigins.push('http://localhost:5174');
+  allowedOrigins.push('http://localhost:8787');
+
+  // 检查 Origin 是否在明确允许的列表中
+  let responseOrigin = null;
+
+  if (origin && allowedOrigins.includes(origin)) {
+    responseOrigin = origin;
+  }
+  // 如果没有配置环境变量，且 Origin 是 Cloudflare 相关域名，自动允许
+  else if (origin && !env.FRONTEND_URL && !env.APP_URL) {
+    // 允许所有 Cloudflare Pages (*.pages.dev) 和 Workers (*.workers.dev) 域名
+    if (origin.endsWith('.pages.dev') || origin.endsWith('.workers.dev')) {
+      responseOrigin = origin;
+    }
+    // 也允许 localhost 开发环境
+    else if (origin.startsWith('http://localhost:')) {
+      responseOrigin = origin;
+    }
+  }
+  // 如果配置了环境变量但 Origin 不在列表中，使用配置的 FRONTEND_URL
+  else if (env.FRONTEND_URL) {
+    responseOrigin = env.FRONTEND_URL;
+  }
+
+  // 如果都没匹配，拒绝请求（不设置 CORS 头）
+  if (!responseOrigin) {
+    return {};
+  }
+
   return {
-    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Origin": responseOrigin,
     "Access-Control-Allow-Credentials": "true",
   };
 }
@@ -140,7 +184,7 @@ async function handleGenerateSurvey(request, env, ctx) {
       return new Response(JSON.stringify({ error: "未登录，请先登录" }), {
         headers: {
           "Content-Type": "application/json",
-          ...getCorsHeaders(request)
+          ...getCorsHeaders(request, env)
         },
         status: 401
       });
@@ -192,7 +236,7 @@ async function handleGenerateSurvey(request, env, ctx) {
     return new Response(JSON.stringify(response), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       }
     });
   } catch (error) {
@@ -203,7 +247,7 @@ async function handleGenerateSurvey(request, env, ctx) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       },
       status: 500
     });
@@ -223,7 +267,7 @@ async function handleSaveSurvey(request, env, ctx) {
       return new Response(JSON.stringify({ error: "未登录，请先登录" }), {
         headers: {
           "Content-Type": "application/json",
-          ...getCorsHeaders(request)
+          ...getCorsHeaders(request, env)
         },
         status: 401
       });
@@ -262,7 +306,7 @@ async function handleSaveSurvey(request, env, ctx) {
       return new Response(JSON.stringify({ error: "无权限修改此问卷" }), {
         headers: {
           "Content-Type": "application/json",
-          ...getCorsHeaders(request)
+          ...getCorsHeaders(request, env)
         },
         status: 403
       });
@@ -274,7 +318,7 @@ async function handleSaveSurvey(request, env, ctx) {
     return new Response(JSON.stringify({ success: true, id }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       }
     });
   } catch (error) {
@@ -285,7 +329,7 @@ async function handleSaveSurvey(request, env, ctx) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       },
       status: 500
     });
@@ -326,7 +370,7 @@ async function handleGetSurvey(request, env, ctx, surveyId) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       }
     });
   } catch (error) {
@@ -337,7 +381,7 @@ async function handleGetSurvey(request, env, ctx, surveyId) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       },
       status: 500
     });
@@ -387,7 +431,7 @@ async function handleSubmitResult(request, env, ctx, surveyId) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       }
     });
   } catch (error) {
@@ -398,7 +442,7 @@ async function handleSubmitResult(request, env, ctx, surveyId) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       },
       status: 500
     });
@@ -447,7 +491,7 @@ async function handleGetResults(request, env, ctx, surveyId) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       }
     });
   } catch (error) {
@@ -458,7 +502,7 @@ async function handleGetResults(request, env, ctx, surveyId) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       },
       status: 500
     });
@@ -498,10 +542,10 @@ async function handleLogin(request, env, provider) {
 
     // 检测是否为生产环境
     const isProduction = env.ENVIRONMENT === 'production' || request.url.startsWith('https://');
-    const secureAttr = isProduction ? 'Secure;' : '';
+    const secureAttr = isProduction ? ' Secure' : '';
 
     // 将状态存储在 cookie 中（实际项目中可以使用更安全的方式）
-    const stateCookie = `oauth_state=${state}; HttpOnly; ${secureAttr} SameSite=Lax; Path=/; Max-Age=600`;
+    const stateCookie = `oauth_state=${state}; HttpOnly${secureAttr}; SameSite=Lax; Path=/; Max-Age=600`;
 
     // 重定向到 OAuth 提供商
     return new Response(null, {
@@ -509,7 +553,7 @@ async function handleLogin(request, env, provider) {
       headers: {
         'Location': authUrl.toString(),
         'Set-Cookie': stateCookie,
-        'Access-Control-Allow-Origin': '*'
+        ...getCorsHeaders(request, env)
       }
     });
   } catch (error) {
@@ -520,7 +564,7 @@ async function handleLogin(request, env, provider) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
+        ...getCorsHeaders(request, env)
       },
       status: 500
     });
@@ -558,7 +602,8 @@ async function handleCallback(request, env, provider) {
     }
 
     // 处理 OAuth 回调并获取用户信息
-    const user = await handleOAuthCallback(provider, code, oauthClient);
+    const callbackUrl = `${new URL(request.url).origin}/api/auth/callback/${provider}`;
+    const user = await handleOAuthCallback(provider, code, oauthClient, callbackUrl);
 
     // 创建 JWT 会话令牌
     const sessionToken = await createSessionToken(user, env.JWT_SECRET);
@@ -567,10 +612,10 @@ async function handleCallback(request, env, provider) {
     const isProduction = env.ENVIRONMENT === 'production' || request.url.startsWith('https://');
 
     // 设置会话 cookie 并重定向到前端
-    const sessionCookie = setSessionCookie(sessionToken, 7 * 24 * 60 * 60, isProduction);
+    const sessionCookie = setSessionCookie(sessionToken, 7 * 24 * 60 * 60, isProduction, request.url);
     const clearStateCookie = isProduction
-      ? 'oauth_state=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'
-      : 'oauth_state=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0';
+      ? 'oauth_state=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0'
+      : 'oauth_state=; HttpOnly; SameSite=None; Path=/; Max-Age=0';
 
     // 重定向到前端应用
     const frontendUrl = env.FRONTEND_URL || 'http://localhost:5173';
@@ -580,7 +625,12 @@ async function handleCallback(request, env, provider) {
     headers.append('Location', `${frontendUrl}/dashboard`);
     headers.append('Set-Cookie', sessionCookie);
     headers.append('Set-Cookie', clearStateCookie);
-    headers.append('Access-Control-Allow-Origin', '*');
+
+    // 添加 CORS 头部
+    const corsHeaders = getCorsHeaders(request, env);
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      headers.append(key, value);
+    });
 
     return new Response(null, {
       status: 302,
@@ -595,7 +645,7 @@ async function handleCallback(request, env, provider) {
       status: 302,
       headers: {
         'Location': `${frontendUrl}/?error=auth_failed&message=${encodeURIComponent(error.message)}`,
-        'Access-Control-Allow-Origin': '*'
+        ...getCorsHeaders(request, env)
       }
     });
   }
@@ -606,13 +656,16 @@ async function handleCallback(request, env, provider) {
  */
 async function handleLogout(request, env) {
   try {
+    // 检测是否为生产环境
+    const isProduction = env.ENVIRONMENT === 'production' || request.url.startsWith('https://');
+
     // 清除会话 cookie
-    const clearCookie = clearSessionCookie();
+    const clearCookie = clearSessionCookie(isProduction);
 
     return new Response(JSON.stringify({ success: true, message: "已成功登出" }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request),
+        ...getCorsHeaders(request, env),
         "Set-Cookie": clearCookie
       }
     });
@@ -624,7 +677,7 @@ async function handleLogout(request, env) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       },
       status: 500
     });
@@ -636,13 +689,19 @@ async function handleLogout(request, env) {
  */
 async function handleGetCurrentUser(request, env) {
   try {
+    const cookieHeader = request.headers.get('Cookie');
+    console.log('handleGetCurrentUser - cookie header:', cookieHeader);
+    console.log('handleGetCurrentUser - parsed cookies:', cookieHeader ? parseCookies(cookieHeader) : 'No cookies');
+    console.log('handleGetCurrentUser - session token:', cookieHeader ? parseCookies(cookieHeader)['session'] : 'No session');
+
     const user = await getUserFromRequest(request, env.JWT_SECRET);
+    console.log('handleGetCurrentUser - user:', user);
 
     if (!user) {
       return new Response(JSON.stringify({ authenticated: false }), {
         headers: {
           "Content-Type": "application/json",
-          ...getCorsHeaders(request)
+          ...getCorsHeaders(request, env)
         },
         status: 401
       });
@@ -660,7 +719,7 @@ async function handleGetCurrentUser(request, env) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       }
     });
   } catch (error) {
@@ -671,7 +730,7 @@ async function handleGetCurrentUser(request, env) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        ...getCorsHeaders(request)
+        ...getCorsHeaders(request, env)
       },
       status: 500
     });
@@ -689,7 +748,7 @@ async function handleGetMySurveys(request, env, ctx) {
       return new Response(JSON.stringify({ error: "未登录，请先登录" }), {
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*"
+          ...getCorsHeaders(request, env)
         },
         status: 401
       });
@@ -723,7 +782,7 @@ async function handleGetMySurveys(request, env, ctx) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
+        ...getCorsHeaders(request, env)
       }
     });
   } catch (error) {
@@ -734,7 +793,7 @@ async function handleGetMySurveys(request, env, ctx) {
     }), {
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
+        ...getCorsHeaders(request, env)
       },
       status: 500
     });

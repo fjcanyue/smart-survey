@@ -33,6 +33,19 @@ export async function initializeDatabase(db) {
       }
     }
 
+    // 检查是否需要添加 owner_id 列到现有表
+    try {
+      await db.prepare(`
+        ALTER TABLE surveys ADD COLUMN owner_id TEXT
+      `).run();
+      console.log('已为现有 surveys 表添加 owner_id 列');
+    } catch (error) {
+      // 如果列已存在，会抛出错误，这是正常的
+      if (!error.message.includes('duplicate column name')) {
+        console.log('owner_id 列已存在或添加失败:', error.message);
+      }
+    }
+
     // 创建 results 表
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS results (

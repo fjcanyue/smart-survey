@@ -82,13 +82,24 @@ export async function getAuthorizationUrl(provider, oauthClient, state) {
 /**
  * 验证 OAuth 回调并获取用户信息
  */
-export async function handleOAuthCallback(provider, code, oauthClient) {
+export async function handleOAuthCallback(provider, code, oauthClient, redirectUrl) {
   try {
+    console.log(`开始处理 ${provider} OAuth 回调，code: ${code.substring(0, 10)}...`);
+
     // 获取访问令牌
-    const tokens = await oauthClient.validateAuthorizationCode(code);
+    const tokens = await oauthClient.validateAuthorizationCode(code, redirectUrl);
+    console.log(`${provider} tokens:`, tokens);
 
     // 根据不同提供商获取用户信息
-    const userInfo = await fetchUserInfo(provider, tokens.accessToken);
+    const accessToken = typeof tokens.accessToken === 'function' ? tokens.accessToken() : tokens.accessToken;
+    if (!accessToken) {
+      throw new Error('Access token not found in response');
+    }
+    console.log(`${provider} access token:`, accessToken);
+    console.log(`${provider} access token type:`, typeof accessToken);
+
+    const userInfo = await fetchUserInfo(provider, accessToken);
+    console.log(`${provider} 用户信息获取成功:`, userInfo);
 
     // 生成唯一用户 ID
     const userId = generateUserId(provider, userInfo.id);
@@ -103,6 +114,7 @@ export async function handleOAuthCallback(provider, code, oauthClient) {
     };
   } catch (error) {
     console.error(`OAuth callback error for ${provider}:`, error);
+    console.error(`详细错误信息:`, error.stack);
     throw error;
   }
 }
@@ -111,6 +123,8 @@ export async function handleOAuthCallback(provider, code, oauthClient) {
  * 从不同提供商获取用户信息
  */
 async function fetchUserInfo(provider, accessToken) {
+  console.log(`fetchUserInfo called with provider: ${provider}, accessToken:`, accessToken, 'type:', typeof accessToken);
+
   let apiUrl;
 
   switch (provider) {
@@ -127,18 +141,49 @@ async function fetchUserInfo(provider, accessToken) {
       throw new Error(`Unsupported provider: ${provider}`);
   }
 
+  console.log(`Fetching user info from: ${apiUrl}`);
+  console.log(`Using Authorization header: Bearer ${accessToken}`);
+
   const response = await fetch(apiUrl, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      'User-Agent': 'Smart-Survey-App'
     }
   });
 
+  console.log(`Response status: ${response.status} ${response.statusText}`);
+
   if (!response.ok) {
-    throw new Error(`Failed to fetch user info from ${provider}`);
+    const errorText = await response.text();
+    console.error(`Failed to fetch user info from ${provider}:`, response.status, errorText);
+    throw new Error(`Failed to fetch user info from ${provider}: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();
+
+  // 对于 GitHub，需要额外获取邮箱信息
+  if (provider === 'github') {
+    try {
+      const emailResponse = await fetch('https://api.github.com/user/emails', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+          'User-Agent': 'Smart-Survey-App'
+        }
+      });
+
+      if (emailResponse.ok) {
+        const emails = await emailResponse.json();
+        const primaryEmail = emails.find(email => email.primary && email.verified);
+        if (primaryEmail) {
+          data.email = primaryEmail.email;
+        }
+      }
+    } catch (emailError) {
+      console.warn('Failed to fetch GitHub emails:', emailError);
+    }
+  }
 
   // 标准化不同提供商的用户信息格式
   return normalizeUserInfo(provider, data);
@@ -257,15 +302,26 @@ export function generateState() {
  * 设置会话 Cookie
  * 在开发环境（localhost）移除 Secure 属性，因为 HTTP 不支持
  */
-export function setSessionCookie(token, maxAge = 7 * 24 * 60 * 60, isProduction = false) {
-  const secure = isProduction ? 'Secure;' : '';
-  return `session=${token}; HttpOnly; ${secure} SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+export function setSessionCookie(token, maxAge = 7 * 24 * 60 * 60, isProduction = false, requestUrl = null) {
+  const secure = isProduction ? ' Secure;' : '';
+  let cookieString = `session=${token}; HttpOnly; ${secure}Path=/; Max-Age=${maxAge}`;
+
+  // 在生产环境（HTTPS）下使用 SameSite=None 以支持跨域（前端在 pages.dev，后端在 workers.dev）
+  // 在开发环境（HTTP）下使用 SameSite=Lax（因为 SameSite=None 必须配合 Secure）
+  if (isProduction) {
+    cookieString += '; SameSite=None';
+  } else {
+    cookieString += '; SameSite=Lax';
+  }
+
+  return cookieString;
 }
 
 /**
  * 清除会话 Cookie
  */
 export function clearSessionCookie(isProduction = false) {
-  const secure = isProduction ? 'Secure;' : '';
-  return `session=; HttpOnly; ${secure} SameSite=Lax; Path=/; Max-Age=0`;
+  const secure = isProduction ? ' Secure;' : '';
+  const sameSite = isProduction ? 'SameSite=None' : 'SameSite=Lax';
+  return `session=; HttpOnly; ${secure}${sameSite}; Path=/; Max-Age=0`;
 }

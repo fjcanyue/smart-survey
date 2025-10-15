@@ -62,24 +62,19 @@ wrangler deploy
 
 ## API 接口说明
 
-### 生成问卷
-- **POST** `/api/surveys/generate`
-- **Body**: `{"prompt": "创建一个关于员工满意度的调查问卷"}`
+### 认证相关
+- **GET** `/api/auth/login/{provider}` - 发起 OAuth 登录 (github/google/microsoft)
+- **GET** `/api/auth/callback/{provider}` - OAuth 回调处理
+- **POST** `/api/auth/logout` - 登出
+- **GET** `/api/auth/me` - 获取当前用户信息
 
-### 保存问卷
-- **POST** `/api/surveys`
-- **Body**: `{"id": "survey_id", "json": {...}}`
-
-### 获取问卷
-- **GET** `/api/surveys/{survey_id}`
-
-### 提交问卷结果
-- **POST** `/api/results/{survey_id}`
-- **Body**: `{"data": {"question1": "answer1", ...}}`
-
-### 获取问卷结果
-- **GET** `/api/results/{survey_id}`
-- **Query Params**: `?limit=100&offset=0`
+### 问卷相关
+- **GET** `/api/surveys/my` - 获取当前用户的问卷列表（需要登录）
+- **POST** `/api/surveys/generate` - AI 生成问卷（需要登录）
+- **POST** `/api/surveys` - 保存/更新问卷（需要登录）
+- **GET** `/api/surveys/{survey_id}` - 获取问卷（公开访问）
+- **POST** `/api/results/{survey_id}` - 提交问卷答案（公开访问）
+- **GET** `/api/results/{survey_id}` - 获取问卷结果（公开访问）
 
 ## 环境变量
 
@@ -87,6 +82,15 @@ wrangler deploy
 - `OPENAI_API_KEY`: OpenAI GPT API 密钥
 - `GEMINI_API_KEY`: Google Gemini API 密钥
 - `CLAUDE_API_KEY`: Anthropic Claude API 密钥
+- `JWT_SECRET`: JWT 令牌加密密钥（认证功能需要）
+- `FRONTEND_URL`: 前端应用 URL（认证功能需要）
+- `APP_URL`: Worker URL（认证功能需要）
+- `GITHUB_CLIENT_ID`: GitHub OAuth 客户端 ID（认证功能需要）
+- `GITHUB_CLIENT_SECRET`: GitHub OAuth 客户端密钥（认证功能需要）
+- `GOOGLE_CLIENT_ID`: Google OAuth 客户端 ID（认证功能需要）
+- `GOOGLE_CLIENT_SECRET`: Google OAuth 客户端密钥（认证功能需要）
+- `MICROSOFT_CLIENT_ID`: Microsoft OAuth 客户端 ID（认证功能需要）
+- `MICROSOFT_CLIENT_SECRET`: Microsoft OAuth 客户端密钥（认证功能需要）
 
 ### 数据库绑定
 - `env.DB`: Cloudflare D1 数据库实例
@@ -102,8 +106,13 @@ wrangler deploy
 wrangler secret list
 ```
 
-### 3. CORS 问题
-确保前端域名在 Worker 的 CORS 配置中。当前配置允许所有域名 (`*`)。
+### 3. OAuth 认证失败
+- 检查 OAuth 应用配置是否正确
+- 确认回调 URL 配置正确
+- 查看浏览器控制台和后端日志
+
+### 4. CORS 问题
+确保前端域名在 Worker 的 CORS 配置中。当前配置允许多个常见域名。
 
 ## 开发模式
 
@@ -152,3 +161,27 @@ wrangler d1 execute smart-survey-db --command "DROP TABLE IF EXISTS surveys"
 2. 监控 API 使用量，避免意外大量消费
 3. 考虑为生产环境设置速率限制
 4. 定期备份重要的问卷数据
+5. 使用强随机字符串作为 JWT_SECRET
+6. 生产环境确保使用 HTTPS 配置 Cookie
+
+## 前端配置
+
+确保前端 `.env` 文件正确配置 API URL：
+
+```env
+# 开发环境
+VITE_API_URL=http://localhost:8787
+
+# 生产环境
+VITE_API_URL=https://your-worker.your-subdomain.workers.dev
+```
+
+## OAuth 配置
+
+如需启用用户认证功能，需要在各 OAuth 平台注册应用并配置回调 URL：
+
+- GitHub: `http://localhost:8787/api/auth/callback/github`
+- Google: `http://localhost:8787/api/auth/callback/google`
+- Microsoft: `http://localhost:8787/api/auth/callback/microsoft`
+
+生产环境需要更新为实际的 Worker URL。
